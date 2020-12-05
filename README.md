@@ -85,7 +85,7 @@ optional arguments:
 (pardon the prefix which was added to simulate the red text)
 
 ```
-$ sudo histstat -p --ip2ldb ~/.IP2Location/IP2L.BIN --rcontinent AS,OC,SA,AF --wcountry AU,AZ --rcountry PL,HU,TR --cmdmax 20 --interfaces tun*,wls*
+$ sudo histstat -p --ip2ldb ~/.IP2Location/IP2L.BIN --rcontinent AS,OC,SA,AF --wcountry AU,NZ --rcountry PL,HU,TR --cmdmax 20 --interfaces tun*,wls*
 ```
 
 ```diff
