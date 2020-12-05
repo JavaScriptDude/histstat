@@ -56,16 +56,16 @@ optional arguments:
   -m CMDMAX, --cmdmax CMDMAX
                         Maximum command length
   -r RCOUNTRY, --rcountry RCOUNTRY
-                        String containing comma separated list of country
+                        Comma separated list of country
                         codes to flag as red. See
                         https://en.wikipedia.org/wiki/ISO_3166-1
   -w WCOUNTRY, --wcountry WCOUNTRY
-                        String containing comma separated list of country
+                        Comma separated list of country
                         codes that are whitelisted. Only applicable if
                         --rcontinent is used. See
                         https://en.wikipedia.org/wiki/ISO_3166-1
   -c RCONTINENT, --rcontinent RCONTINENT
-                        String containing comma separated list of continent
+                        Comma separated list of continent
                         codes to flag as red
   -g IP2LDB, --ip2ldb IP2LDB
                         Path to IP2Location DB file
