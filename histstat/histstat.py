@@ -28,11 +28,19 @@ PROTOCOLS = {
     (AF_INET6, SOCK_DGRAM):  'udp6'
 }
 FIELDS = [
+    'date', 'time', 'proto', 'laddr', 'lport', 'raddr', 'rport', 'status',
+    'user', 'pid', 'pname', 'command'
+]
+FIELDS_IP2L = [
     'date', 'time', 'proto', 'laddr', 'lport', 'raddr', 'rport', 'country', 'cn', 'status',
     'user', 'pid', 'pname', 'command'
 ]
-P_FIELDS = '{:<8} {:<8} {:<5} {:<15.15} {:<5} {:<15.15} {:<5} {:<15.15} {:<2} {:<11.11} ' \
+P_FIELDS = '{:<8} {:<8} {:<5} {:<15.15} {:<5} {:<15.15} {:<5} {:<11.11} ' \
            '{:<10.10} {:<7.7} {:<20.20} {}'
+P_FIELDS_IP2L = '{:<8} {:<8} {:<5} {:<15.15} {:<5} {:<15.15} {:<5} {:<15.15} {:<2} {:<11.11} ' \
+           '{:<10.10} {:<7.7} {:<20.20} {}'
+
+
 
 CONTINENTS_SHORT =  ["AF"     , "AN"         , "AS"   , "EU"     , "NA"            , "OC"      , "SA"]
 CONTINENTS_LONG =   ["Africa" , "Antarctica" , "Asia" , "Europe" , "North America" , "Oceania" , "South America"]
@@ -64,7 +72,7 @@ def histmain(interval):
     # get initial connections
     connections_A = psutil.net_connections()
     for c in connections_A:
-        if _filter_conn(c): continue
+        if output.ip2l and _filter_conn(c): continue
         output.process(process_conn(c))
 
     # primary loop
@@ -73,7 +81,7 @@ def histmain(interval):
         connections_B = psutil.net_connections()
         new_conn=False
         for c in connections_B:
-            if _filter_conn(c): continue
+            if output.ip2l and _filter_conn(c): continue
             if c not in connections_A:
                 output.process(process_conn(c))
                 new_conn=True
@@ -97,16 +105,17 @@ def process_conn(c):
     cont = "-"
     if c.raddr:
         raddr, rport = c.raddr
-        if raddr in _ip2l_cache:
-            ip2l_rec = _ip2l_cache[raddr]
-        else:
-            ip2l_rec = IP2LocObj.get_all(raddr)
-            _ip2l_cache[raddr] = ip2l_rec
-        ctry = ip2l_rec.country_short
-        try:
-            cont = pycountry_convert.country_alpha2_to_continent_code(ctry)
-        except KeyError as e:
-            pass
+        if output.ip2l:
+            if raddr in _ip2l_cache:
+                ip2l_rec = _ip2l_cache[raddr]
+            else:
+                ip2l_rec = IP2LocObj.get_all(raddr)
+                _ip2l_cache[raddr] = ip2l_rec
+            ctry = ip2l_rec.country_short
+            try:
+                cont = pycountry_convert.country_alpha2_to_continent_code(ctry)
+            except KeyError as e:
+                pass
 
     if c.pid:
         try:
@@ -120,10 +129,16 @@ def process_conn(c):
 
     if not output.cmdmax is None and len(command) > (output.cmdmax+3): command = command[:output.cmdmax] + '...'
 
-    return [
-        date[2:], time[:8], proto, laddr, lport, raddr, rport, ctry, cont, status,
-        user, pid, pname, command
-    ]
+    if output.ip2l:
+        return [
+            date[2:], time[:8], proto, laddr, lport, raddr, rport, ctry, cont, status,
+            user, pid, pname, command
+        ]
+    else:
+        return [
+            date[2:], time[:8], proto, laddr, lport, raddr, rport, status,
+            user, pid, pname, command
+        ]
 
 
 def get_ip_addresses(family, interfaces:list):
@@ -139,15 +154,14 @@ def get_ip_addresses(family, interfaces:list):
 class Output:
     """Handles all output for histstat."""
 
-    def __init__(self, log, json_out, prettify, flush, quiet, interfaces, cmdmax, rcountry, rcontinent, wcountry):
+    def __init__(self, log, json_out, prettify, flush, quiet, interfaces, cmdmax, rcountry, rcontinent, wcountry, ip2l):
         self.log = log
         self.json_out = json_out
         self.prettify = prettify
         self.flush = flush
         self.quiet = quiet
+        self.ip2l = ip2l
         
-
-
         if quiet and not log:
             print('Error: Quiet and Log must be used together.')
             sys.exit(2)
@@ -198,33 +212,39 @@ class Output:
         else:
             self.adapter = []
 
+
         self.rcountry = None
         self.rcontinent = None
         self.wcountry = None
-        for k, v in [('rcountry', rcountry), ('rcontinent', rcontinent), ('wcountry', wcountry)]:
-            
-            if v is None:
-                arr = None
-            else:
-                arr = list(map(lambda s: str(s).strip().upper(), v.split(',')))
-                for v2 in arr:
-                    if k == 'rcountry' or k == 'wcountry':
-                        if pycountry.countries.get(alpha_2=v2) is None:
-                            print('Invalid country code passed in --{}: {}.'.format(k, v2))
-                            sys.exit(2)
-                    else:
-                        if v2 in CONTINENTS_SHORT:
-                            v2 = CONTINENTS_LONG[CONTINENTS_SHORT.index(v2)]
-                        elif not v2 in CONTINENTS_LONG:
-                            print('Invalid Continent code passed in --rcontinent paramertr: {}.'.format(v2))
-                            sys.exit(2)
-
-                if k == 'rcountry':
-                    self.rcountry = arr
-                elif k == 'wcountry':
-                    self.wcountry = arr
+        if not self.ip2l:
+            if not rcountry is None or not rcontinent is None or not wcountry is None:
+                print('Parameters --rcountry, --rcontinent and --wcountry are not applicable unless --ip2ldb is passed.')
+                sys.exit(2)
+        else:
+            for k, v in [('rcountry', rcountry), ('rcontinent', rcontinent), ('wcountry', wcountry)]:
+                
+                if v is None:
+                    arr = None
                 else:
-                    self.rcontinent = arr
+                    arr = list(map(lambda s: str(s).strip().upper(), v.split(',')))
+                    for v2 in arr:
+                        if k == 'rcountry' or k == 'wcountry':
+                            if pycountry.countries.get(alpha_2=v2) is None:
+                                print('Invalid country code passed in --{}: {}.'.format(k, v2))
+                                sys.exit(2)
+                        else:
+                            if v2 in CONTINENTS_SHORT:
+                                v2 = CONTINENTS_LONG[CONTINENTS_SHORT.index(v2)]
+                            elif not v2 in CONTINENTS_LONG:
+                                print('Invalid Continent code passed in --rcontinent paramertr: {}.'.format(v2))
+                                sys.exit(2)
+
+                    if k == 'rcountry':
+                        self.rcountry = arr
+                    elif k == 'wcountry':
+                        self.wcountry = arr
+                    else:
+                        self.rcontinent = arr
         
         
 
@@ -249,23 +269,28 @@ class Output:
         if header:
             print(header)
         if not self.json_out:
-            self.process(FIELDS, is_header=True)
+            self.process(FIELDS_IP2L if self.ip2l else FIELDS, is_header=True)
 
 
     def process(self, cfields, is_header=False):
-        ctry = cfields[7]
-        cont = cfields[8]
-        if not is_header and not ctry == '-':
-            c = pycountry.countries.get(alpha_2=ctry)
-            cfields[7] = c.name
         bRed = False
-        if self.rcontinent and cont in self.rcontinent:
-            bRed = (not self.wcountry or not ctry in self.wcountry)
-        else:
-            bRed = (self.rcountry and ctry in self.rcountry)
+        if self.ip2l:
+            ctry = cfields[7]
+            cont = cfields[8]
+            if not is_header and not ctry == '-':
+                c = pycountry.countries.get(alpha_2=ctry)
+                cfields[7] = c.name
+            bRed = False
+            if self.rcontinent and cont in self.rcontinent:
+                bRed = (not self.wcountry or not ctry in self.wcountry)
+            else:
+                bRed = (self.rcountry and ctry in self.rcountry)
 
         if self.prettify:
-            line = P_FIELDS.format(*cfields)
+            if self.ip2l:
+                line = P_FIELDS_IP2L.format(*cfields)
+            else:
+                line = P_FIELDS.format(*cfields)
         elif self.json_out:
             line = dict(zip(FIELDS, cfields))
         else:
@@ -273,7 +298,7 @@ class Output:
 
         # stdout
         if not self.quiet:
-            if bRed:
+            if self.ip2l and bRed:
                 print(colored(line, 'red'))
             else:
                 print(line)
@@ -342,14 +367,17 @@ def get_parser():
         default=None, type=str
     )
 
+    parser.add_argument(
+        '-g', '--ip2ldb', help='Path to IP2Location DB file',
+        default=None, type=str
+    )
+
     return parser
 
 IP2LocObj = IP2Location.IP2Location()
 
 
 def main():
-
-    IP2LocObj.open("IP2L.BIN")
 
     parser = get_parser()
     args = vars(parser.parse_args())
@@ -358,8 +386,18 @@ def main():
         print(__version__)
         return
 
+
+    if args['ip2ldb']:
+        if not os.path.isfile(args['ip2ldb']):
+            print('Error: IP2Location file {} not found.'.format(args['ip2ldb'], os.getcwd()))
+            sys.exit(2)
+        IP2LocObj.open(args['ip2ldb'])
+
+
     interval = args['interval']
     
+
+
 
     global output
     output = Output(
@@ -373,6 +411,7 @@ def main():
         rcountry=args['rcountry'],
         rcontinent=args['rcontinent'],
         wcountry=args['wcountry'],
+        ip2l=(not args['ip2ldb'] is None),
     )
 
     try:
