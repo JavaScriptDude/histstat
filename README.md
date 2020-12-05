@@ -26,7 +26,8 @@ This is a cross-platform command-line tool for obtaining live, rudimentary netwo
 
 ### Install
 * Download this repo as zip and unzip to a temp directory
-* CD to the temp directory
+* `cd` to the temp directory
+* run:
 ```
 python -m pip install .
 ```
