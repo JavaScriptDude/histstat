@@ -1,9 +1,9 @@
 # histstat
 
 
-# NOTE - This is a fork of vesche/histstat and you cannot use pip to install this version. It must be installed using python.
+### NOTE - This is a fork of vesche/histstat and you cannot use pip to install this version. It must be installed using python.
 
-# Special notes on this fork
+### Special notes on this fork
 This version has implemented the following features:
 * Utilize  IP2Location to add geolocation information to output
 * Add country / continent redlist/whitelist for marking output as red in console as specified
