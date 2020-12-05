@@ -7,7 +7,7 @@
 This version has implemented the following features:
 * Utilize  IP2Location to add geolocation information to output
 * Add country / continent redlist/whitelist for marking output as red in console as specified
-** Applicable params: --rcountry, --rcontinent, --wcountry
+** Applicable params: --ip2ldb, --rcountry, --rcontinent, --wcountry
 ** All are comma separated country abbreviations. Continents can be full names.
 * Specify interfaces which output will be shown for and filter out output for all other interfaces.
 ** supports wildcards eg: --interfaces wls*,tun*
@@ -26,8 +26,10 @@ This is a cross-platform command-line tool for obtaining live, rudimentary netwo
 **Note for Windows users:** Detailed process information will not display unless you're running as `NT AUTHORITY\SYSTEM`. An easy way to drop into a system-level command prompt is to use PsExec from [SysInternals](https://technet.microsoft.com/en-us/sysinternals/bb842062.aspx). Run `psexec -i -s cmd.exe` as Administrator and then run histstat.
 
 ### Install
+* Download this repo as zip and unzip to a temp directory
+* CD to the temp directory
 ```
-python install setup.py
+python -m pip install .
 ```
 
 ### Example Usage
@@ -36,7 +38,7 @@ python install setup.py
 $ histstat --help
 usage: histstat.py [-h] [-i INTERVAL] [-l LOG] [-p] [-j] [-F] [-q] [-v]
                    [-I INTERFACES] [-m CMDMAX] [-r RCOUNTRY] [-w WCOUNTRY]
-                   [-c RCONTINENT]
+                   [-c RCONTINENT] [-g IP2LDB]
 
 history for netstat
 
@@ -66,13 +68,15 @@ optional arguments:
   -c RCONTINENT, --rcontinent RCONTINENT
                         String containing comma separated list of continent
                         codes to flag as red
+  -g IP2LDB, --ip2ldb IP2LDB
+                        Path to IP2Location DB file
 ```
 
 ### Output example
 (pardon the prefix which was added to simulate the red text)
 
 ```
-$ sudo histstat -p --rcontinent AS,OC,SA,AF --wcountry AU,AZ --rcountry PL,HU,TR --cmdmax 20 --interfaces tun*,wls*
+$ sudo histstat -p --ip2ldb ~/.IP2Location/IP2L.BIN --rcontinent AS,OC,SA,AF --wcountry AU,AZ --rcountry PL,HU,TR --cmdmax 20 --interfaces tun*,wls*
 ```
 
 ```diff
