@@ -3,3 +3,4 @@ fnmatch
 IP2Location
 pycountry
 pycountry_convert
+termcolor
