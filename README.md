@@ -31,6 +31,15 @@ This is a cross-platform command-line tool for obtaining live, rudimentary netwo
 ```
 python -m pip install .
 ```
+## On *nix, make available for sudo
+After install, get path to histstat script
+```
+which histstat
+```
+Create Symlink for root
+```
+sudo ln -s <full_path_to_histstat> /bin/histstat
+```
 
 ### Example Usage
 
