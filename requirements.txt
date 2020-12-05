@@ -1,6 +1,6 @@
 psutil
 fnmatch
-IP2Location
+IP2Location>=8.2.0
 pycountry
 pycountry_convert
 termcolor
