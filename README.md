@@ -18,8 +18,7 @@ This version has implemented the following features:
 * Limit command column length in output
 ** see --cmdmax param
 
-To use this version, you must get a copy of the IP2Location bin file named as 'IP2L.BIN' and locate it in the same folder as the histstat.py script.
-
+To use geolocating features in this version, you must get a copy of the IP2Location bin file and locate some location on your computer. The path must be provided in --ip2ldb param
 
 This is a cross-platform command-line tool for obtaining live, rudimentary network connection data on a computer system. This tool was designed for network and security analysts to easily view connections on a system **as they occur**. It will display useful information about network connections that utilities like netstat typically won't give you such as what time the connection was made, the exact command that created the connection, and the user that connection was made by.
 
