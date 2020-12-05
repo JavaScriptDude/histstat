@@ -5,7 +5,7 @@
 
 ### Special notes on this fork
 This version has implemented the following features:
-* Utilize  IP2Location to add geolocation information to output
+* Utilize  [IP2Location](https://lite.ip2location.com/database/ip-country) to add geolocation information to output
 * Add country / continent redlist/whitelist for marking output as red in console as specified
 ** Applicable params: --ip2ldb, --rcountry, --rcontinent, --wcountry
 ** All are comma separated country abbreviations. Continents can be full names.
@@ -18,7 +18,7 @@ This version has implemented the following features:
 * Limit command column length in output
 ** see --cmdmax param
 
-To use geolocating features in this version, you must get a copy of the IP2Location bin file and locate some location on your computer. The path must be provided in --ip2ldb param
+To use geolocating features in this version, you must get a copy of the [IP2Location](https://download.ip2location.com/lite/) LITE bin file and locate some location on your computer. The path must be provided in --ip2ldb param
 
 This is a cross-platform command-line tool for obtaining live, rudimentary network connection data on a computer system. This tool was designed for network and security analysts to easily view connections on a system **as they occur**. It will display useful information about network connections that utilities like netstat typically won't give you such as what time the connection was made, the exact command that created the connection, and the user that connection was made by.
 
