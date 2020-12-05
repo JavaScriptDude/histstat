@@ -353,17 +353,17 @@ def get_parser():
     )
 
     parser.add_argument(
-        '-r', '--rcountry', help='String containing comma separated list of country codes to flag as red. See https://en.wikipedia.org/wiki/ISO_3166-1',
+        '-r', '--rcountry', help='Comma separated list of country codes to flag as red. See https://en.wikipedia.org/wiki/ISO_3166-1',
         default=None, type=str
     )
 
     parser.add_argument(
-        '-w', '--wcountry', help='String containing comma separated list of country codes that are whitelisted. Only applicable if --rcontinent is used. See https://en.wikipedia.org/wiki/ISO_3166-1',
+        '-w', '--wcountry', help='Comma separated list of country codes that are whitelisted. Only applicable if --rcontinent is used. See https://en.wikipedia.org/wiki/ISO_3166-1',
         default=None, type=str
     )
 
     parser.add_argument(
-        '-c', '--rcontinent', help='String containing comma separated list of continent codes to flag as red',
+        '-c', '--rcontinent', help='Comma separated list of continent codes to flag as red',
         default=None, type=str
     )
 
