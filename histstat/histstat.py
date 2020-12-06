@@ -15,6 +15,7 @@ import fnmatch
 import IP2Location
 import pycountry
 import pycountry_convert
+import sqlite3
 
 from termcolor import colored
 from socket import AF_INET, AF_INET6, SOCK_DGRAM, SOCK_STREAM
@@ -40,7 +41,24 @@ P_FIELDS = '{:<8} {:<8} {:<5} {:<15.15} {:<5} {:<15.15} {:<5} {:<11.11} ' \
 P_FIELDS_IP2L = '{:<8} {:<8} {:<5} {:<15.15} {:<5} {:<15.15} {:<5} {:<15.15} {:<2} {:<11.11} ' \
            '{:<10.10} {:<7.7} {:<20.20} {}'
 
-
+SQL_COLUMNS=[
+    # (i, name, dtype, allow_null, default, pkey)
+     (0, 'pkey'      , 'INTEGER' , 0, None, 1)
+    ,(1, 'date'      , 'TEXT'    , 0, None, 0)
+    ,(2, 'time'      , 'TEXT'    , 0, None, 0)
+    ,(3, 'protocol'  , 'TEXT'    , 0, None, 0)
+    ,(4, 'loc_addr'  , 'TEXT'    , 0, None, 0)
+    ,(5, 'loc_port'  , 'INTEGER' , 0, None, 0)
+    ,(6, 'rem_addr'  , 'TEXT'    , 0, None, 0)
+    ,(7, 'rem_port'  , 'INTEGER' , 0, None, 0)
+    ,(8, 'country'   , 'TEXT'    , 0, None, 0)
+    ,(9, 'continent' , 'TEXT'    , 0, None, 0)
+    ,(10, 'status'   , 'TEXT'    , 0, None, 0)
+    ,(11, 'user'     , 'TEXT'    , 0, None, 0)
+    ,(12, 'pid'      , 'INTEGER' , 0, None, 0)
+    ,(13, 'proc_name', 'TEXT'    , 0, None, 0)
+    ,(14, 'proc_cmd' , 'TEXT'    , 0, None, 0)
+]
 
 CONTINENTS_SHORT =  ["AF"     , "AN"         , "AS"   , "EU"     , "NA"            , "OC"      , "SA"]
 CONTINENTS_LONG =   ["Africa" , "Antarctica" , "Asia" , "Europe" , "North America" , "Oceania" , "South America"]
@@ -56,11 +74,32 @@ else:
     sys.exit(1)
 
 def _filter_conn(c):
-    if len(output.filter_ip) == 0: return False
-    (ip_local,_) = c.laddr
-    (ip_remote,_) = c.raddr if c.raddr else (None, None)
-    if ip_local in output.filter_ip or (c.raddr and ip_remote in output.filter_ip): return False
-    return True
+    # Local IP filtering (see --interfaces)
+    if len(output.filter_ip) > 0:
+        (ip_local,_) = c.laddr
+        (ip_remote,_) = c.raddr if c.raddr else (None, None)
+        if not ip_local in output.filter_ip \
+            and not (c.raddr and ip_remote in output.filter_ip): 
+            return True
+    
+    
+    # status filtering
+    v = c.status
+    if output.sfilter and isinstance(v, str):
+        bFound=False
+        for sf in output.sfilter:
+            if sf.find('*') > -1: #Wildcard match
+                if fnmatch.fnmatch(v, sf):
+                    bFound=True
+                    break
+            else:
+                bFound = (sf == v)
+
+        if not bFound: return True
+
+    return False
+
+
 
 
 def histmain(interval):
@@ -101,8 +140,8 @@ def process_conn(c):
     status = pid = pname = user = command = '-'
     laddr, lport = c.laddr
 
-    ctry = "-"
-    cont = "-"
+    _ctry = "-"
+    _cont = "-"
     if c.raddr:
         raddr, rport = c.raddr
         if output.ip2l:
@@ -111,9 +150,9 @@ def process_conn(c):
             else:
                 ip2l_rec = IP2LocObj.get_all(raddr)
                 _ip2l_cache[raddr] = ip2l_rec
-            ctry = ip2l_rec.country_short
+            _ctry = ip2l_rec.country_short
             try:
-                cont = pycountry_convert.country_alpha2_to_continent_code(ctry)
+                _cont = pycountry_convert.country_alpha2_to_continent_code(_ctry)
             except KeyError as e:
                 pass
 
@@ -134,7 +173,7 @@ def process_conn(c):
 
     if output.ip2l:
         return [
-            date[2:], time[:8], proto, laddr, lport, raddr, rport, ctry, cont, status,
+            date[2:], time[:8], proto, laddr, lport, raddr, rport, _ctry, _cont, status,
             user, pid, pname, command
         ]
     else:
@@ -157,13 +196,14 @@ def get_ip_addresses(family, interfaces:list):
 class Output:
     """Handles all output for histstat."""
 
-    def __init__(self, log, json_out, prettify, flush, quiet, interfaces, cmdmax, rcountry, rcontinent, wcountry, ip2l):
+    def __init__(self, log, json_out, prettify, flush, quiet, interfaces, cmdmax, rcountry, rcontinent, wcountry, ip2l, sfilter, sqlite):
         self.log = log
         self.json_out = json_out
         self.prettify = prettify
         self.flush = flush
         self.quiet = quiet
         self.ip2l = ip2l
+        self.pcount = 0
         
         if quiet and not log:
             print('Error: Quiet and Log must be used together.')
@@ -217,7 +257,7 @@ class Output:
         else:
             self.adapter = []
 
-
+        # Process Country flagging
         self.rcountry = None
         self.rcontinent = None
         self.wcountry = None
@@ -254,7 +294,19 @@ class Output:
             if self.json_out:
                 FIELDS_IP2L[8] = 'continent'
         
-        
+        # Process status filter
+        if not sfilter:
+            self.sfilter = False
+        else:
+            self.sfilter = list(map(lambda s: str(s).strip().upper(), sfilter.split(',')))
+
+        if sqlite:
+            self.sqlite = True
+            self.sqlite_path = sqlite
+            self.sqlite_conn = sqlite3.connect(sqlite)
+            col_names=list(map(lambda col: col[1], SQL_COLUMNS[1:]))
+            self.sqlite_insert_stmt="INSERT INTO HistStat ({}) VALUES({})".format( (', '.join(col_names)), (('?,'*len(col_names))[:-1]) )
+            
 
     def preflight(self):
         header = ''
@@ -274,6 +326,10 @@ class Output:
         if not root_check:
             header += '(Not all process information could be determined, run' \
                       ' at a higher privilege level to see everything.)\n'
+
+        if self.sqlite:
+            header += '(Output is being written to Sqllite 3 db: {})\n'.format(self.sqlite_path)
+
         if header:
             print(header)
         if not self.json_out:
@@ -281,19 +337,31 @@ class Output:
 
 
     def process(self, cfields, is_header=False):
+
+        if self.sqlite:
+            if is_header: return
+            self.pcount = self.pcount + 1
+            cfields[0] = '20' + cfields[0]
+            cfields[1] = cfields[1] + ".0"
+            row = cfields[:6] + ['-', '-'] + cfields[6:] if not self.ip2l else cfields
+            cur = self.sqlite_conn.cursor()
+            cur.execute(self.sqlite_insert_stmt, row)
+            return
+
+        self.pcount = self.pcount + 1
         bRed = False
         if self.ip2l:
-            ctry = cfields[7]
-            cont = cfields[8]
+            _ctry = cfields[7]
+            _cont = cfields[8]
             if not self.json_out:
-                if not is_header and not ctry == '-':
-                    c = pycountry.countries.get(alpha_2=ctry)
+                if not is_header and not _ctry == '-':
+                    c = pycountry.countries.get(alpha_2=_ctry)
                     cfields[7] = c.name
                 bRed = False
-                if self.rcontinent and cont in self.rcontinent:
-                    bRed = (not self.wcountry or not ctry in self.wcountry)
+                if self.rcontinent and _cont in self.rcontinent:
+                    bRed = (not self.wcountry or not _ctry in self.wcountry)
                 else:
-                    bRed = (self.rcountry and ctry in self.rcountry)
+                    bRed = (self.rcountry and _ctry in self.rcountry)
 
         if self.ip2l:
             fields = FIELDS_IP2L
@@ -322,7 +390,63 @@ class Output:
     def interval_done(self, new_conn):
         if new_conn and self.log and self.flush:
             self.file_handle.flush()
+        if self.sqlite:
+            self.sqlite_conn.commit()
+            # print("committed {} rows".format(self.pcount))
+        self.pcount=0
 
+
+def isSqlite3Db(db):
+    if not os.path.isfile(db): return False
+    sz = os.path.getsize(db)
+
+    # file is empty, give benefit of the doubt that its sqlite
+    # New sqlite3 files created in recent libraries are empty!
+    if sz == 0: return True
+
+    # SQLite database file header is 100 bytes
+    if sz < 100: return False
+
+    # Validate file header
+    with open(db, 'rb') as fd: header = fd.read(100)    
+
+    return (header[:16] == b'SQLite format 3\x00')
+
+
+def validateDbSchema(sqlitepath):
+    # Validate Schema
+    conn = sqlite3.connect(sqlitepath)
+
+    sBadSchemaErr=None
+
+    cur = conn.cursor().execute("SELECT name FROM sqlite_master WHERE type='table' AND name='HistStat'")
+    if len(cur.fetchall()) == 0:
+        sb = []
+        sb.append("CREATE TABLE HistStat (")
+        for col in SQL_COLUMNS:
+            (i, name, dtype, allow_null, default, pkey) = col
+            sb.append("\n   {0} {1}{2}{3}".format(name, dtype, (' PRIMARY KEY AUTOINCREMENT' if pkey else ''), ('' if i == len(SQL_COLUMNS)-1 else ',') ))
+        sb.append("\n)")
+
+        sql = ''.join(sb)
+        cur = conn.cursor()
+        cur.execute(sql)
+        conn.commit()
+
+
+    else:  #validate schema
+        rows = conn.cursor().execute("PRAGMA table_info('HistStat')").fetchall()
+        if not len(rows) == len(SQL_COLUMNS):
+            sBadSchemaErr = "Number of columns is incorrect."
+        else:
+            for i, row in enumerate(rows):
+                if not SQL_COLUMNS[i] == row:
+                    sBadSchemaErr = "Column with issue is: {}".format(row)
+                    break
+
+        if sBadSchemaErr:
+            print("HistStat table in db {} does not match required schema. {}. Please rename HistStat table so it can be re-created.".format(sqlitepath, sBadSchemaErr))
+            sys.exit(2)
 
 def get_parser():
     parser = argparse.ArgumentParser(description='history for netstat')
@@ -385,6 +509,16 @@ def get_parser():
         default=None, type=str
     )
 
+    parser.add_argument(
+        '-s', '--sfilter', help='Filter output by Status Code',
+        default=None, type=str
+    )
+    parser.add_argument(
+        '-S', '--sqlite', help='Store output in SQLite DB',
+        default=None, type=str
+    )
+
+
     return parser
 
 IP2LocObj = IP2Location.IP2Location()
@@ -399,17 +533,37 @@ def main():
         print(__version__)
         return
 
-
-    if args['ip2ldb']:
-        if not os.path.isfile(args['ip2ldb']):
-            print('Error: IP2Location file {} not found.'.format(args['ip2ldb'], os.getcwd()))
+    k='ip2ldb'; v=args[k]
+    if v:
+        if not os.path.isfile(v):
+            print('Error: IP2Location file {} from --{} param not found.'.format(v, k))
             sys.exit(2)
-        IP2LocObj.open(args['ip2ldb'])
+        IP2LocObj.open(v)
+        ip2l = True
+    else:
+        ip2l = False
 
+    k='sqlite'; v=args[k]
+    if v:
+        if os.path.isfile(v):
+            if not isSqlite3Db(v):
+                print('Error: --sqlite parameter does not point to a valid sqlite db: ({})'.format(v))
+                sys.exit(2)
 
-    interval = args['interval']
-    
+        else:
+            _file = os.path.basename(v)
+            _path = v[:-(len(_file))-1]
+            if not _path == '' and not _path == './' and not os.path.isdir(_path):
+                print('Error: sqlite db ({}) not found and directory does not exist. Cannot create a new db.'.format(v, k))
+                sys.exit(2)
 
+            # create DB
+            sqlite3.connect(v).close()
+
+            
+
+        validateDbSchema(v)
+        
 
 
     global output
@@ -424,11 +578,13 @@ def main():
         rcountry=args['rcountry'],
         rcontinent=args['rcontinent'],
         wcountry=args['wcountry'],
-        ip2l=(not args['ip2ldb'] is None),
+        ip2l=ip2l,
+        sfilter=args['sfilter'],
+        sqlite=args['sqlite'],
     )
 
     try:
-        histmain(interval)
+        histmain(args['interval'])
     except KeyboardInterrupt:
         pass
 
