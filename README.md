@@ -1,7 +1,7 @@
 # histstat
 
 
-### NOTE - This is a fork of vesche/histstat and you cannot use pip to install this version. It must be installed using python.
+### NOTE - This is a fork of vesche/histstat and you cannot use `pip install <package_name>` to install. See below for details.
 
 ### Special notes on this fork
 This version has implemented the following features:
@@ -17,6 +17,9 @@ This version has implemented the following features:
 ** see --quiet param
 * Limit command column length in output
 ** see --cmdmax param
+* Ability to filter based on Status 
+** see -- sfilter param
+* Ability to output to Sqlite DB
 
 To use geolocating features in this version, you must get a copy of the [IP2Location](https://download.ip2location.com/lite/) LITE bin file and locate some location on your computer. The path must be provided in --ip2ldb param
 
@@ -47,7 +50,7 @@ sudo ln -s <full_path_to_histstat> /bin/histstat
 $ histstat --help
 usage: histstat.py [-h] [-i INTERVAL] [-l LOG] [-p] [-j] [-F] [-q] [-v]
                    [-I INTERFACES] [-m CMDMAX] [-r RCOUNTRY] [-w WCOUNTRY]
-                   [-c RCONTINENT] [-g IP2LDB]
+                   [-c RCONTINENT] [-g IP2LDB] [-s SFILTER] [-S SQLITE]
 
 history for netstat
 
@@ -66,19 +69,20 @@ optional arguments:
   -m CMDMAX, --cmdmax CMDMAX
                         Maximum command length
   -r RCOUNTRY, --rcountry RCOUNTRY
-                        Comma separated list of country
-                        codes to flag as red. See
-                        https://en.wikipedia.org/wiki/ISO_3166-1
+                        Comma separated list of country codes to flag as red.
+                        See https://en.wikipedia.org/wiki/ISO_3166-1
   -w WCOUNTRY, --wcountry WCOUNTRY
-                        Comma separated list of country
-                        codes that are whitelisted. Only applicable if
-                        --rcontinent is used. See
-                        https://en.wikipedia.org/wiki/ISO_3166-1
+                        Comma separated list of country codes that are
+                        whitelisted. Only applicable if --rcontinent is used.
+                        See https://en.wikipedia.org/wiki/ISO_3166-1
   -c RCONTINENT, --rcontinent RCONTINENT
-                        Comma separated list of continent
-                        codes to flag as red
+                        Comma separated list of continent codes to flag as red
   -g IP2LDB, --ip2ldb IP2LDB
                         Path to IP2Location DB file
+  -s SFILTER, --sfilter SFILTER
+                        Filter output by Status Code
+  -S SQLITE, --sqlite SQLITE
+                        Store output in SQLite DB
 ```
 
 ### Output example
