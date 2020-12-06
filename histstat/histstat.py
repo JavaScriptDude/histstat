@@ -127,7 +127,10 @@ def process_conn(c):
     if c.status != 'NONE':
         status = c.status
 
-    if not output.cmdmax is None and len(command) > (output.cmdmax+3): command = command[:output.cmdmax] + '...'
+    if not output.json_out \
+        and not output.cmdmax is None \
+        and len(command) > (output.cmdmax+3): 
+        command = command[:output.cmdmax] + '...'
 
     if output.ip2l:
         return [
@@ -180,6 +183,8 @@ class Output:
             if self.cmdmax < 10: 
                 print('Please specify cmdmax of >= 10.')
                 sys.exit(2)
+            if self.json_out:
+                print('Using JSON out. Ignoring cmdmax option.')
         except:
             self.cmdmax = None
 
@@ -245,6 +250,9 @@ class Output:
                         self.wcountry = arr
                     else:
                         self.rcontinent = arr
+
+            if self.json_out:
+                FIELDS_IP2L[8] = 'continent'
         
         
 
@@ -277,22 +285,27 @@ class Output:
         if self.ip2l:
             ctry = cfields[7]
             cont = cfields[8]
-            if not is_header and not ctry == '-':
-                c = pycountry.countries.get(alpha_2=ctry)
-                cfields[7] = c.name
-            bRed = False
-            if self.rcontinent and cont in self.rcontinent:
-                bRed = (not self.wcountry or not ctry in self.wcountry)
-            else:
-                bRed = (self.rcountry and ctry in self.rcountry)
+            if not self.json_out:
+                if not is_header and not ctry == '-':
+                    c = pycountry.countries.get(alpha_2=ctry)
+                    cfields[7] = c.name
+                bRed = False
+                if self.rcontinent and cont in self.rcontinent:
+                    bRed = (not self.wcountry or not ctry in self.wcountry)
+                else:
+                    bRed = (self.rcountry and ctry in self.rcountry)
+
+        if self.ip2l:
+            fields = FIELDS_IP2L
+            p_fields = P_FIELDS_IP2L
+        else:
+            fields = FIELDS
+            p_fields = P_FIELDS
 
         if self.prettify:
-            if self.ip2l:
-                line = P_FIELDS_IP2L.format(*cfields)
-            else:
-                line = P_FIELDS.format(*cfields)
+            line = p_fields.format(*cfields)
         elif self.json_out:
-            line = dict(zip(FIELDS, cfields))
+            line = dict(zip(fields, cfields))
         else:
             line = '\t'.join(map(str, cfields))
 
