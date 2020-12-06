@@ -306,6 +306,8 @@ class Output:
             self.sqlite_conn = sqlite3.connect(sqlite)
             col_names=list(map(lambda col: col[1], SQL_COLUMNS[1:]))
             self.sqlite_insert_stmt="INSERT INTO HistStat ({}) VALUES({})".format( (', '.join(col_names)), (('?,'*len(col_names))[:-1]) )
+        else:
+            self.sqlite = False
             
 
     def preflight(self):
