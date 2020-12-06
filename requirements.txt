@@ -1,5 +1,4 @@
 psutil
-fnmatch
 IP2Location>=8.2.0
 pycountry
 pycountry_convert
