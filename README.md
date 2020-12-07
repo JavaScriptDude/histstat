@@ -7,19 +7,21 @@
 This version has implemented the following features:
 * Utilize  [IP2Location](https://lite.ip2location.com/database/ip-country) to add geolocation information to output
 * Add country / continent redlist/whitelist for marking output as red in console as specified
-** Applicable params: --ip2ldb, --rcountry, --rcontinent, --wcountry
-** All are comma separated country abbreviations. Continents can be full names.
+ * Applicable params: --ip2ldb, --rcountry, --rcontinent, --wcountry
+ * All are comma separated country abbreviations. Continents can be full names.
 * Specify interfaces which output will be shown for and filter out output for all other interfaces.
-** supports wildcards eg: --interfaces wls*,tun*
+ * supports wildcards eg: --interfaces wls*,tun*
 * Flush feature so output us flushed on completion of each process
-** see --flush param
+ * see --flush param
 * Quite feature when outputing to file so stdout is only operational information
-** see --quiet param
+ * see --quiet param
 * Limit command column length in output
-** see --cmdmax param
+ * see --cmdmax param
 * Ability to filter based on Status 
-** see -- sfilter param
+* * see --sfilter param
 * Ability to output to Sqlite DB
+* Ability to Filter by Local IP Address and/or Port
+ * see --fladdr param
 
 To use geolocating features in this version, you must get a copy of the [IP2Location](https://download.ip2location.com/lite/) LITE bin file and locate some location on your computer. The path must be provided in --ip2ldb param
 
@@ -50,7 +52,8 @@ sudo ln -s <full_path_to_histstat> /bin/histstat
 $ histstat --help
 usage: histstat.py [-h] [-i INTERVAL] [-l LOG] [-p] [-j] [-F] [-q] [-v]
                    [-I INTERFACES] [-m CMDMAX] [-r RCOUNTRY] [-w WCOUNTRY]
-                   [-c RCONTINENT] [-g IP2LDB] [-s SFILTER] [-S SQLITE]
+                   [-c RCONTINENT] [-g IP2LDB] [-s SFILTER] [-A FLADDR]
+                   [-S SQLITE]
 
 history for netstat
 
@@ -81,6 +84,10 @@ optional arguments:
                         Path to IP2Location DB file
   -s SFILTER, --sfilter SFILTER
                         Filter output by Status Code
+  -A FLADDR, --fladdr FLADDR
+                        Filter by local Address. <ip> -or- <ip>:<port> -or-
+                        :<port> with wildcards in any value. Comma Separated
+                        for multiple.
   -S SQLITE, --sqlite SQLITE
                         Store output in SQLite DB
 ```
