@@ -74,26 +74,51 @@ else:
     sys.exit(1)
 
 def _filter_conn(c):
+    (ip_local,port_local) = c.laddr
+    (ip_remote,port_remote) = c.raddr if c.raddr else (None, None)
     # Local IP filtering (see --interfaces)
     if len(output.filter_ip) > 0:
-        (ip_local,_) = c.laddr
-        (ip_remote,_) = c.raddr if c.raddr else (None, None)
         if not ip_local in output.filter_ip \
             and not (c.raddr and ip_remote in output.filter_ip): 
             return True
     
-    
+
+    # local Address filter (--fladdr)
+    if output.fladdr:
+        def __match(addr, fil):
+            addr = str(addr)
+            if fil is None:
+                return True
+            else:
+                if fil.find('*') > -1: #Wildcard match
+                    if fnmatch.fnmatch(addr, fil):
+                        return True
+                else:
+                    if addr == fil:
+                        return True
+            return False
+
+        bFound = False
+        for (f_ip, f_port) in output.fladdr:
+            if __match(ip_local, f_ip) and __match(port_local, f_port):
+                bFound = True
+                break
+
+        if not bFound: return True
+        
+
+
     # status filtering
     v = c.status
     if output.sfilter and isinstance(v, str):
         bFound=False
-        for sf in output.sfilter:
-            if sf.find('*') > -1: #Wildcard match
-                if fnmatch.fnmatch(v, sf):
+        for fil in output.sfilter:
+            if fil.find('*') > -1: #Wildcard match
+                if fnmatch.fnmatch(v, fil):
                     bFound=True
                     break
             else:
-                bFound = (sf == v)
+                bFound = (v == fil)
 
         if not bFound: return True
 
@@ -196,7 +221,7 @@ def get_ip_addresses(family, interfaces:list):
 class Output:
     """Handles all output for histstat."""
 
-    def __init__(self, log, json_out, prettify, flush, quiet, interfaces, cmdmax, rcountry, rcontinent, wcountry, ip2l, sfilter, sqlite):
+    def __init__(self, log, json_out, prettify, flush, quiet, interfaces, cmdmax, rcountry, rcontinent, wcountry, ip2l, sfilter, sqlite, fladdr):
         self.log = log
         self.json_out = json_out
         self.prettify = prettify
@@ -281,7 +306,7 @@ class Output:
                             if v2 in CONTINENTS_SHORT:
                                 v2 = CONTINENTS_LONG[CONTINENTS_SHORT.index(v2)]
                             elif not v2 in CONTINENTS_LONG:
-                                print('Invalid Continent code passed in --rcontinent paramertr: {}.'.format(v2))
+                                print('Invalid Continent code passed in --rcontinent parameter: {}.'.format(v2))
                                 sys.exit(2)
 
                     if k == 'rcountry':
@@ -294,6 +319,29 @@ class Output:
             if self.json_out:
                 FIELDS_IP2L[8] = 'continent'
         
+        # Local Addr Filter
+        if not fladdr:
+            self.fladdr = False
+        else:
+            def _p_fladdr(pattern):
+                a = list(map(lambda s: str(s).strip(), pattern.split(':')))
+                iL = len(a)
+                if iL == 1:
+                    return (a[0], None)
+                elif iL == 2:
+                    v = a[0]; ip = None if v == '' or v == '*' else v
+                    v = a[1]; po = None if v == '' or v == '*' else v
+                    return (ip, po)
+                else:
+                    print('Invalid address passed in --fladdr parameter: {}.'.format(pattern))
+                    sys.exit(2)
+
+            self.fladdr = list(filter(lambda t: not t == (None, None), map(_p_fladdr, fladdr.split(','))))
+            if len(self.fladdr) == 0: self.fladdr = False
+
+            
+
+
         # Process status filter
         if not sfilter:
             self.sfilter = False
@@ -516,6 +564,11 @@ def get_parser():
         default=None, type=str
     )
     parser.add_argument(
+        '-A', '--fladdr', help='Filter by local Address. <ip> -or- <ip>:<port> -or- :<port> with wildcards in any value. Comma Separated for multiple.',
+        default=None, type=str
+    )
+
+    parser.add_argument(
         '-S', '--sqlite', help='Store output in SQLite DB',
         default=None, type=str
     )
@@ -548,6 +601,7 @@ def main():
     k='sqlite'; v=args[k]
     if v:
         if os.path.isfile(v):
+            v = args[k] = os.path.abspath(v)
             if not isSqlite3Db(v):
                 print('Error: --sqlite parameter does not point to a valid sqlite db: ({})'.format(v))
                 sys.exit(2)
@@ -555,7 +609,13 @@ def main():
         else:
             _file = os.path.basename(v)
             _path = v[:-(len(_file))-1]
-            if not _path == '' and not _path == './' and not os.path.isdir(_path):
+            if _path == '' or _path == './':
+                v = args[k] = os.getcwd()+'/'+_file
+
+            elif os.path.isdir(_path):
+                v = args[k] = os.path.abspath(_path)+'/'+_file
+                
+            else:
                 print('Error: sqlite db ({}) not found and directory does not exist. Cannot create a new db.'.format(v, k))
                 sys.exit(2)
 
@@ -583,6 +643,7 @@ def main():
         ip2l=ip2l,
         sfilter=args['sfilter'],
         sqlite=args['sqlite'],
+        fladdr=args['fladdr'],
     )
 
     try:
