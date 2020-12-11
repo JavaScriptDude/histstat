@@ -1,22 +1,9 @@
 #!/usr/bin/env python
 
 """
-histstat, history for netstat
-https://github.com/vesche/histstat
+# histstat -i 1 --ip2ldb V:\20201202_AcclogParser\app\iis_acclog_parser\IP2L.BIN --sqlite V:\20201202_AcclogParser\app\iis_acclog_parser\histstat.db
 """
-import os
-import sys
-import time
-import psutil
-import argparse
-import datetime
-import socket
-import fnmatch
-import IP2Location
-import pycountry
-import pycountry_convert
-import sqlite3
-
+import os,sys, time, psutil, argparse, datetime, socket, fnmatch, IP2Location, pycountry, pycountry_convert, sqlite3
 from termcolor import colored
 from socket import AF_INET, AF_INET6, SOCK_DGRAM, SOCK_STREAM
 
@@ -42,22 +29,21 @@ P_FIELDS_IP2L = '{:<8} {:<8} {:<5} {:<15.15} {:<5} {:<15.15} {:<5} {:<15.15} {:<
            '{:<10.10} {:<7.7} {:<20.20} {}'
 
 SQL_COLUMNS=[
-    # (i, name, dtype, allow_null, default, pkey)
-     (0, 'pkey'      , 'INTEGER' , 0, None, 1)
-    ,(1, 'date'      , 'TEXT'    , 0, None, 0)
-    ,(2, 'time'      , 'TEXT'    , 0, None, 0)
-    ,(3, 'protocol'  , 'TEXT'    , 0, None, 0)
-    ,(4, 'loc_addr'  , 'TEXT'    , 0, None, 0)
-    ,(5, 'loc_port'  , 'INTEGER' , 0, None, 0)
-    ,(6, 'rem_addr'  , 'TEXT'    , 0, None, 0)
-    ,(7, 'rem_port'  , 'INTEGER' , 0, None, 0)
-    ,(8, 'country'   , 'TEXT'    , 0, None, 0)
-    ,(9, 'continent' , 'TEXT'    , 0, None, 0)
-    ,(10, 'status'   , 'TEXT'    , 0, None, 0)
-    ,(11, 'user'     , 'TEXT'    , 0, None, 0)
-    ,(12, 'pid'      , 'INTEGER' , 0, None, 0)
-    ,(13, 'proc_name', 'TEXT'    , 0, None, 0)
-    ,(14, 'proc_cmd' , 'TEXT'    , 0, None, 0)
+    # (i,  name, dtype, allow_null, default, pkey)
+     (0,  'PKey'        , 'INTEGER' , 0, None, 1)
+    ,(1,  'Date'        , 'TEXT'    , 0, None, 0)
+    ,(2,  'Protocol'    , 'TEXT'    , 0, None, 0)
+    ,(3,  'LAddr'       , 'TEXT'    , 0, None, 0)
+    ,(4,  'LPort'       , 'INTEGER' , 0, None, 0)
+    ,(5,  'RAddr'       , 'TEXT'    , 0, None, 0)
+    ,(6,  'RPort'       , 'INTEGER' , 0, None, 0)
+    ,(7,  'Country'     , 'TEXT'    , 0, None, 0)
+    ,(8,  'Continent'   , 'TEXT'    , 0, None, 0)
+    ,(9, 'Status'      , 'TEXT'    , 0, None, 0)
+    ,(10, 'User'        , 'TEXT'    , 0, None, 0)
+    ,(11, 'Pid'         , 'INTEGER' , 0, None, 0)
+    ,(12, 'ProcName'    , 'TEXT'    , 0, None, 0)
+    ,(13, 'ProcCmd'     , 'TEXT'    , 0, None, 0)
 ]
 
 CONTINENTS_SHORT =  ["AF"     , "AN"         , "AS"   , "EU"     , "NA"            , "OC"      , "SA"]
@@ -393,7 +379,9 @@ class Output:
             self.pcount = self.pcount + 1
             cfields[0] = '20' + cfields[0]
             cfields[1] = cfields[1] + ".0"
-            row = cfields[:6] + ['-', '-'] + cfields[6:] if not self.ip2l else cfields
+            row = cfields[2:6] + ['-', '-'] + cfields[6:] if not self.ip2l else cfields[2:]
+            # collate date and time fields to one large string that is parsable and can be used for some comparisons
+            row = [cfields[0].replace('-', '')+cfields[1].replace(':','').replace('.0', '')] + row
             cur = self.sqlite_conn.cursor()
             cur.execute(self.sqlite_insert_stmt, row)
             return
