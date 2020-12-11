@@ -381,7 +381,7 @@ class Output:
             cfields[1] = cfields[1] + ".0"
             row = cfields[2:6] + ['-', '-'] + cfields[6:] if not self.ip2l else cfields[2:]
             # collate date and time fields to one large string that is parsable and can be used for some comparisons
-            row = [cfields[0].replace('-', '')+cfields[1].replace(':','').replace('.0', '')] + row
+            row = [cfields[0].replace('-', '')+cfields[1].replace(':','').replace('.0', '000000')] + row
             cur = self.sqlite_conn.cursor()
             cur.execute(self.sqlite_insert_stmt, row)
             return
