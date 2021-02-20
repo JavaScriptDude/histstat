@@ -53,7 +53,7 @@ $ histstat --help
 usage: histstat.py [-h] [-i INTERVAL] [-l LOG] [-p] [-j] [-F] [-q] [-v]
                    [-I INTERFACES] [-m CMDMAX] [-r RCOUNTRY] [-w WCOUNTRY]
                    [-c RCONTINENT] [-g IP2LDB] [-s SFILTER] [-A FLADDR]
-                   [-S SQLITE]
+                   [-S SQLITE] [-Q QUIT]
 
 history for netstat
 
@@ -90,6 +90,7 @@ optional arguments:
                         for multiple.
   -S SQLITE, --sqlite SQLITE
                         Store output in SQLite DB
+  -Q QUIT, --quit QUIT  Quit after n minutes
 ```
 
 ### Output example
