@@ -1,9 +1,14 @@
 #!/usr/bin/env python
 
+# TODO:
+# [.] Add IPv6 Inet support (c.family == socket.AF_INET6)
+
 """
-# histstat -i 1 --ip2ldb V:\20201202_AcclogParser\app\iis_acclog_parser\IP2L.BIN --sqlite V:\20201202_AcclogParser\app\iis_acclog_parser\histstat.db
+% histstat -i 1 --ip2ldb V:\20201202_AcclogParser\app\iis_acclog_parser\IP2L.BIN --sqlite V:\20201202_AcclogParser\app\iis_acclog_parser\histstat.db
+% histstat -i 1 --ip2ldb .\IP2L.BIN --sqlite .\histstat.db --fladdr 192.168.50.21*:80,192.168.50.21*:443
+
 """
-import os,sys, time, psutil, argparse, datetime, socket, fnmatch, IP2Location, pycountry, pycountry_convert, sqlite3
+import os, sys, time, psutil, argparse, datetime, socket, fnmatch, IP2Location, pycountry, pycountry_convert, sqlite3
 from termcolor import colored
 from socket import AF_INET, AF_INET6, SOCK_DGRAM, SOCK_STREAM
 
@@ -39,11 +44,12 @@ SQL_COLUMNS=[
     ,(6,  'RPort'       , 'INTEGER' , 0, None, 0)
     ,(7,  'Country'     , 'TEXT'    , 0, None, 0)
     ,(8,  'Continent'   , 'TEXT'    , 0, None, 0)
-    ,(9, 'Status'      , 'TEXT'    , 0, None, 0)
+    ,(9,  'Status'      , 'TEXT'    , 0, None, 0)
     ,(10, 'User'        , 'TEXT'    , 0, None, 0)
     ,(11, 'Pid'         , 'INTEGER' , 0, None, 0)
     ,(12, 'ProcName'    , 'TEXT'    , 0, None, 0)
     ,(13, 'ProcCmd'     , 'TEXT'    , 0, None, 0)
+    ,(14, 'Parents'     , 'TEXT'    , 0, None, 0)
 ]
 
 CONTINENTS_SHORT =  ["AF"     , "AN"         , "AS"   , "EU"     , "NA"            , "OC"      , "SA"]
@@ -140,6 +146,10 @@ def histmain(interval):
 
         connections_A = connections_B
 
+        if not output.quite_time is None and datetime.datetime.now() > output.quite_time:
+            print("Exiting program as per quite time of {} minutes".format(output.quit))
+            sys.exit(0)
+
 _ip2l_cache={}
 
 def process_conn(c):
@@ -148,7 +158,7 @@ def process_conn(c):
     date, time = str(datetime.datetime.now()).split()
     proto = PROTOCOLS[(c.family, c.type)]
     raddr = rport = '*'
-    status = pid = pname = user = command = '-'
+    status = pid = pname = user = command = parents = '-'
     laddr, lport = c.laddr
 
     _ctry = "-"
@@ -159,19 +169,29 @@ def process_conn(c):
             if raddr in _ip2l_cache:
                 ip2l_rec = _ip2l_cache[raddr]
             else:
-                ip2l_rec = IP2LocObj.get_all(raddr)
-                _ip2l_cache[raddr] = ip2l_rec
-            _ctry = ip2l_rec.country_short
-            try:
-                _cont = pycountry_convert.country_alpha2_to_continent_code(_ctry)
-            except KeyError as e:
-                pass
+                if c.family == socket.AF_INET:
+                    ip2l_rec = IP2LocObj.get_all(raddr)
+                    _ip2l_cache[raddr] = ip2l_rec
+                    _ctry = ip2l_rec.country_short
+                    try:
+                        _cont = pycountry_convert.country_alpha2_to_continent_code(_ctry)
+                    except KeyError as e:
+                        pass
+
+                else:
+                    _cont = _ctry = '(na/ipv6)'
 
     if c.pid:
         try:
-            pname, pid = psutil.Process(c.pid).name(), str(c.pid)
-            user = psutil.Process(c.pid).username()
-            command = ' '.join(psutil.Process(c.pid).cmdline())
+            p = psutil.Process(c.pid)
+            pname, pid = p.name(), str(c.pid)
+            user = p.username()
+            command = ' '.join(p.cmdline())
+            
+            parents = ' -> '.join(['({}) {}'.format(par.pid, ' '.join(par.cmdline())) for par in p.parents() if True])
+
+
+
         except:
             pass # if process closes during processing
     if c.status != 'NONE':
@@ -183,15 +203,19 @@ def process_conn(c):
         command = command[:output.cmdmax] + '...'
 
     if output.ip2l:
-        return [
+        a = [
             date[2:], time[:8], proto, laddr, lport, raddr, rport, _ctry, _cont, status,
             user, pid, pname, command
         ]
     else:
-        return [
+        a = [
             date[2:], time[:8], proto, laddr, lport, raddr, rport, status,
             user, pid, pname, command
         ]
+
+    if output.sqlite: a.append(parents)
+
+    return a
 
 
 def get_ip_addresses(family, interfaces:list):
@@ -207,7 +231,7 @@ def get_ip_addresses(family, interfaces:list):
 class Output:
     """Handles all output for histstat."""
 
-    def __init__(self, log, json_out, prettify, flush, quiet, interfaces, cmdmax, rcountry, rcontinent, wcountry, ip2l, sfilter, sqlite, fladdr):
+    def __init__(self, log, json_out, prettify, flush, quiet, interfaces, cmdmax, rcountry, rcontinent, wcountry, ip2l, sfilter, sqlite, fladdr, quit):
         self.log = log
         self.json_out = json_out
         self.prettify = prettify
@@ -215,6 +239,7 @@ class Output:
         self.quiet = quiet
         self.ip2l = ip2l
         self.pcount = 0
+        self.quit = quit
         
         if quiet and not log:
             print('Error: Quiet and Log must be used together.')
@@ -340,8 +365,16 @@ class Output:
             self.sqlite_conn = sqlite3.connect(sqlite)
             col_names=list(map(lambda col: col[1], SQL_COLUMNS[1:]))
             self.sqlite_insert_stmt="INSERT INTO HistStat ({}) VALUES({})".format( (', '.join(col_names)), (('?,'*len(col_names))[:-1]) )
+            FIELDS_IP2L.append('parents')
+            FIELDS.append('parents')
         else:
             self.sqlite = False
+
+
+        if self.quit:
+            self.quite_time = datetime.datetime.now() + datetime.timedelta(minutes=self.quit)
+        else:
+            self.quite_time = None
             
 
     def preflight(self):
@@ -365,6 +398,7 @@ class Output:
 
         if self.sqlite:
             header += '(Output is being written to Sqllite 3 db: {})\n'.format(self.sqlite_path)
+
 
         if header:
             print(header)
@@ -394,7 +428,8 @@ class Output:
             if not self.json_out:
                 if not is_header and not _ctry == '-':
                     c = pycountry.countries.get(alpha_2=_ctry)
-                    cfields[7] = c.name
+                    # print("_ctry: {}, c: {}".format(_ctry, c))
+                    cfields[7] = '-' if c is None else c.name
                 bRed = False
                 if self.rcontinent and _cont in self.rcontinent:
                     bRed = (not self.wcountry or not _ctry in self.wcountry)
@@ -469,6 +504,11 @@ def validateDbSchema(sqlitepath):
         sql = ''.join(sb)
         cur = conn.cursor()
         cur.execute(sql)
+        conn.commit()
+
+        # Create Index
+        cur = conn.cursor()
+        cur.execute("CREATE INDEX idx_date_status on HistStat (Date, Status)")
         conn.commit()
 
 
@@ -561,6 +601,11 @@ def get_parser():
         default=None, type=str
     )
 
+    parser.add_argument(
+        '-Q', '--quit', help='Quit after n minutes',
+        default=None, type=float
+    )
+
 
     return parser
 
@@ -632,6 +677,7 @@ def main():
         sfilter=args['sfilter'],
         sqlite=args['sqlite'],
         fladdr=args['fladdr'],
+        quit=args['quit'],
     )
 
     try:
@@ -645,5 +691,71 @@ def main():
     return 0
 
 
+
+
+class SingleInstanceChecker:
+    def __init__(self, id):
+        if isWin():
+            ensure_win32api()
+            self.mutexname = id
+            self.lock = win32event.CreateMutex(None, False, self.mutexname)
+            self.running = (win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS)
+
+        else:
+            ensure_fcntl()
+            self.lock = open(f"/tmp/isnstance_{id}.lock", 'wb')
+            try:
+                fcntl.lockf(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self.running = False
+            except IOError:
+                self.running = True
+
+
+    def already_running(self):
+        return self.running
+        
+    def __del__(self):
+        if self.lock:
+            try:
+                if isWin():
+                    win32api.CloseHandle(self.lock)
+                else:
+                    os.close(self.lock)
+            except Exception as ex:
+                pass
+
+# ---------------------------------------
+# Utility Functions
+# Dynamically load win32api on demand
+# Install with: pip install pywin32
+win32api=winerror=win32event=None
+def ensure_win32api():
+    global win32api,winerror,win32event
+    if win32api is None:
+        import win32api
+        import winerror
+        import win32event
+
+
+# Dynamically load fcntl on demand
+# Install with: pip install fcntl
+fcntl=None
+def ensure_fcntl():
+    global fcntl
+    if fcntl is None:
+        import fcntl
+
+
+def isWin():
+    return (os.name == 'nt')
+# ---------------------------------------
+
+
 if __name__ == '__main__':
-    sys.exit(main())
+    SCR_NAME = "histstat.py"
+    sic = SingleInstanceChecker(SCR_NAME)
+    if sic.already_running():
+        print("An instance of {} is already running.".format(SCR_NAME))
+        sys.exit(1)
+    else:
+         sys.exit(main())
