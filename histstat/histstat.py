@@ -2,6 +2,7 @@
 
 # TODO:
 # [.] Add IPv6 Inet support (c.family == socket.AF_INET6)
+# [.] Add parameter to control Single Instance check - Is defaulted on for now. Can be commented out if needed for now.
 
 """
 % histstat -i 1 --ip2ldb V:\20201202_AcclogParser\app\iis_acclog_parser\IP2L.BIN --sqlite V:\20201202_AcclogParser\app\iis_acclog_parser\histstat.db
